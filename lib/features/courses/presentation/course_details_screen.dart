@@ -10,9 +10,7 @@ class CourseDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Read the *live* course from the shared provider so lesson toggles
-    // also update the dashboard. Fall back to the passed snapshot while
-    // the provider reloads.
+   
     final live = ref.watch(coursesProvider.select((s) {
       if (s is CoursesData) {
         for (final c in s.courses) {
@@ -26,7 +24,9 @@ class CourseDetailsScreen extends ConsumerWidget {
     final notifier = ref.read(coursesProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: Text(live.title)),
+      appBar: AppBar(title: Text(live.title),
+      
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

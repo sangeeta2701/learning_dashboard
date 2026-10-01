@@ -28,8 +28,6 @@ final courseRepositoryProvider = Provider<CourseRepository>(
   ),
 );
 
-
-
 sealed class CoursesState {
   const CoursesState();
 }
@@ -52,12 +50,9 @@ class CoursesError extends CoursesState {
   const CoursesError(this.message);
 }
 
-
-
 class CoursesNotifier extends Notifier<CoursesState> {
   @override
   CoursesState build() {
-    // Kick off the first load asynchronously; start in loading.
     Future.microtask(load);
     return const CoursesLoading();
   }
@@ -75,11 +70,6 @@ class CoursesNotifier extends Notifier<CoursesState> {
   }
 
   /// Flips a lesson and persists it right away.
-  ///
-  /// The UI is updated first (optimistic) so tapping feels instant, and the
-  /// tick is only rolled back if writing it to storage fails. Persisting on
-  /// every tap is what keeps the progress intact when the app is swiped away
-  /// from the background or restarted.
   Future<void> toggleLesson(int courseId, String lessonId) async {
     final current = state;
     if (current is! CoursesData) return;
@@ -95,10 +85,32 @@ class CoursesNotifier extends Notifier<CoursesState> {
           .read(courseRepositoryProvider)
           .setLessonCompleted(lessonId, completed: nextCompleted);
     } catch (_) {
-      // Storage rejected the write – undo the optimistic tick so the UI never
-      // claims something was saved when it wasn't.
+      // Storage rejected the write – undo the optimistic tick.
       _writeLesson(courseId, lessonId, completed: lesson.completed);
     }
+  }
+
+  /// Clears every saved lesson tick for the current account and rebuilds the
+  /// in-memory state so both the dashboard and details screens update at once.
+  ///
+  /// The cached *course list* is intentionally kept – only progress is reset.
+  Future<void> resetProgress() async {
+    await ref.read(courseProgressStoreProvider).clear();
+
+    final current = state;
+    if (current is! CoursesData) return;
+
+    final reset = current.courses
+        .map(
+          (c) => c.copyWith(
+            lessons: [
+              for (final l in c.lessons) l.copyWith(completed: false),
+            ],
+          ),
+        )
+        .toList();
+
+    state = CoursesData(reset);
   }
 
   void _writeLesson(

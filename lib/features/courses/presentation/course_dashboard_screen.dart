@@ -5,7 +5,6 @@ import 'package:learning_dashboard/features/courses/course.dart';
 import 'package:learning_dashboard/features/courses/presentation/course_details_screen.dart';
 import 'package:learning_dashboard/features/courses/presentation/providers/courses_provider.dart';
 
-
 class CourseDashboardScreen extends ConsumerWidget {
   const CourseDashboardScreen({super.key});
 
@@ -17,11 +16,13 @@ class CourseDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Courses'),
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(coursesProvider.notifier).load(),
-          ),
+          // Enabled only when we actually have course data to reset.
+          if (state is CoursesData && state.courses.isNotEmpty)
+            IconButton(
+              tooltip: 'Reset progress',
+              icon: const Icon(Icons.restart_alt),
+              onPressed: () => _confirmReset(context, ref, state.courses),
+            ),
           const _AccountMenu(),
         ],
       ),
@@ -34,23 +35,91 @@ class CourseDashboardScreen extends ConsumerWidget {
             message: message,
             onRetry: () => ref.read(coursesProvider.notifier).load(),
           ),
-        CoursesData(:final courses) => RefreshIndicator(
-            onRefresh: () => ref.read(coursesProvider.notifier).load(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: courses.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (_, i) => _CourseCard(
-                course: courses[i],
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CourseDetailsScreen(course: courses[i]),
-                  ),
+        CoursesData(:final courses) => ListView.separated(
+            // No RefreshIndicator here: scrolling up must not trigger a reload.
+            padding: const EdgeInsets.all(16),
+            itemCount: courses.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (_, i) => _CourseCard(
+              course: courses[i],
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CourseDetailsScreen(course: courses[i]),
                 ),
               ),
             ),
           ),
       },
+    );
+  }
+
+  Future<void> _confirmReset(
+    BuildContext context,
+    WidgetRef ref,
+    List<Course> courses,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _ResetConfirmDialog(courses: courses),
+    );
+
+    if (confirmed == true) {
+      await ref.read(coursesProvider.notifier).resetProgress();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Progress cleared.')),
+        );
+      }
+    }
+  }
+}
+
+/// Confirmation dialog. Returns true when the user taps Reset.
+///
+/// Shows the course names that will be affected so the user knows exactly
+/// what they're clearing.
+class _ResetConfirmDialog extends StatelessWidget {
+  final List<Course> courses;
+  const _ResetConfirmDialog({required this.courses});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Reset progress?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'This clears every completed lesson for the following courses:',
+          ),
+          const SizedBox(height: 12),
+          for (final c in courses)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.circle, size: 6),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(c.title)),
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          const Text('This cannot be undone.'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Reset'),
+        ),
+      ],
     );
   }
 }
@@ -130,8 +199,6 @@ class _AccountMenu extends ConsumerWidget {
       icon: const Icon(Icons.account_circle),
       onSelected: (value) {
         if (value == 'logout') {
-          // Clears the persisted session; [AuthGate] then shows the login
-          // screen again on this and on every future launch.
           ref.read(authSessionProvider.notifier).signOut();
         }
       },

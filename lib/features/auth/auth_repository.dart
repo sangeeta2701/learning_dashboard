@@ -7,10 +7,8 @@ class AuthRepository {
 
   AuthRepository(this._sessions);
 
-  /// The session persisted by a previous login, if any.
-  ///
-  /// Called once when the app boots so an already signed-in user is never asked
-  /// for credentials again.
+  // The session persisted by a previous login, if any.
+  
   User? restoreSession() => _sessions.read();
 
   Future<User> login({

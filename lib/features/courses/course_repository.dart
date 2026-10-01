@@ -17,8 +17,7 @@ class CourseRepository {
 
   final bool simulateRemoteFailure;
 
-  /// Where lesson ticks live. Kept *outside* the course cache so that a
-  /// write-through of the course list (or an offline read) can never erase them.
+ 
   final CourseProgressStore progressStore;
 
   CourseRepository(
@@ -37,7 +36,6 @@ class CourseRepository {
 
   Future<List<Course>> getCourses() async {
     try {
-      // ---- Mock remote fetch ----
       await Future.delayed(const Duration(milliseconds: 700));
       if (simulateRemoteFailure) {
         throw const NetworkFailure();
@@ -48,7 +46,6 @@ class CourseRepository {
         decoded.map((e) => Course.fromJson(e as Map<String, dynamic>)).toList(),
       );
 
-      // Write-through cache (metadata only – progress lives in its own store).
       await prefs.setString(
         _cacheKey,
         jsonEncode(courses.map((c) => c.toJson()).toList()),
@@ -62,10 +59,7 @@ class CourseRepository {
     }
   }
 
-  /// Persists a single lesson tick.
-  ///
-  /// Called on every checkbox tap so nothing is lost if the OS kills the app
-  /// while it sits in the background.
+  
   Future<void> setLessonCompleted(
     String lessonId, {
     required bool completed,
@@ -94,12 +88,7 @@ class CourseRepository {
     }
   }
 
-  /// Re-applies the locally stored ticks on top of whatever the backend (or the
-  /// cache) returned.
-  ///
-  /// Local progress always wins: the mock backend answers with lesson *counts*
-  /// only, so without this merge a restart or a pull-to-refresh would silently
-  /// reset the learner's progress to 0%.
+ 
   List<Course> _mergeLocalProgress(List<Course> courses) {
     final completed = progressStore.readCompletedLessonIds();
     if (completed.isEmpty) return courses;
